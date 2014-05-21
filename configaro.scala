@@ -1,81 +1,133 @@
+
 import scala.collection.mutable
+import scala.language.implicitConversions
 import scala.reflect.runtime.universe.{TypeTag, TypeRef, typeOf}
 
-// A function that also keeps its domain and range types as a payload
-class FunctionTP[D: TypeTag, R:TypeTag](f: D=>R) extends Function[D,R] {
-  val domainType = typeOf[D]
-  val rangeType = typeOf[R]
+// a function that supports "|" operator
+class PF[D,R](f:D=>R) extends Function[D,R] {
   val func = f
-  override def apply(x: D):R = func(x)
-  def compose[E:TypeTag](g: E=>D):FunctionTP[E,R] = new FunctionTP(func compose g)
-  def andThen[S:TypeTag](g: R=>S):FunctionTP[D,S] = new FunctionTP(func andThen g)
+  def apply(d:D):R = func(d)
+  def |[S](g:R=>S):PF[D,S] = new PF(func andThen g)
 }
 
-// Generates a function that applies a function 'f'
-// on payload of an Option[_], -- returns None if arg is None, or if
-// f threw an exception
-// (might be typically used for type casting from string to other types)
-def typedPred[D:TypeTag,R:TypeTag](f:D=>R):FunctionTP[Option[D],Option[R]] = {
-  new FunctionTP((d:Option[D]) => {
-    val r:Option[R] = { d match {
-      case Some(v) => {
-        try {
-          Some(f(v))
-        } catch {
-          case _ : Throwable => None
-        }
-      } 
-      case None => None
-    }}
-    r
-  })
+case class ConfigaroConversionException(message:String) extends Exception(message)
+
+def conversionExceptionMessage[T:TypeTag](o: Option[T]):String = {
+  val tString = typeOf[T].toString
+  val vString = o match {
+    case Some(v) => "Some(" + v.toString + ")"
+    case None => "None"
+  }
+  s"Cannot convert Option[$tString] = $vString"
 }
 
+// a configured value, for supporting type conversions
+class CV[+T:TypeTag](op:Option[T]) {
+  val o = op
+
+  def toLong:Long = o match {
+    case Some(v: Long) => v
+    case Some(v: Double) if v == v.toLong.toDouble => v.toLong
+    case _ => throw new ConfigaroConversionException(conversionExceptionMessage(o))
+  }
+
+  def toInt:Int = o match {
+    case Some(v: Long) if v == v.toInt.toLong => v.toInt
+    case Some(v: Double) if v == v.toInt.toDouble => v.toInt
+    case _ => throw new ConfigaroConversionException(conversionExceptionMessage(o))
+  }
+
+  def toDouble:Double = o match {
+    case Some(v: Long) => v.toDouble
+    case Some(v:Double) => v
+    case _ => throw new ConfigaroConversionException(conversionExceptionMessage(o))
+  }
+
+  def toFloat:Float = o match {
+    case Some(v: Long) => v.toFloat
+    case Some(v:Double) => v.toFloat
+    case _ => throw new ConfigaroConversionException(conversionExceptionMessage(o))
+  }
+
+  override def toString:String = o match {
+    case Some(v) => v.toString
+    // This is a compromise.  If I throw an exception here, like the toXxx above, it
+    // will cause exception when something like conf.get("undefined") is invoked 
+    // inside the REPL.  Also, this at least respects the convention that any value
+    // can be converted to String.  
+    // Maybe there is a better solution?
+    case None => "None"
+  }
+}
+
+object Convert {
+  implicit def cvToOption[T](cv:CV[T]):Option[T] = cv.o
+
+  implicit def cvToLong[T:TypeTag](cv:CV[T]):Long = cv.toLong
+  implicit def cvToInt[T:TypeTag](cv:CV[T]):Int = cv.toInt
+  implicit def cvToDouble[T:TypeTag](cv:CV[T]):Double = cv.toDouble
+  implicit def cvToFloat[T:TypeTag](cv:CV[T]):Float = cv.toFloat
+  implicit def cvToString[T:TypeTag](cv:CV[T]):String = cv.toString
+}
+import Convert._
+
+
+// Generates a function that applies a function 'f' to option payloads
+def typedPred[D,R:TypeTag](f:D=>R):PF[Option[D],CV[R]] = {
+  new PF((d:Option[D]) => new CV(try {
+    d match {
+      case Some(v) => Some(f(v))
+      case None => throw new Exception
+    }
+  } catch {
+    // support alternate failure response policies here
+    case _ : Throwable => None
+  }))
+}
+
+// default assignment
+def defaultTo[D:TypeTag](dv:D):Function[CV[D],CV[D]] = {
+  (d:CV[D]) => new CV(d.o match {
+      case Some(v) => Some(v)
+      case None => Some(dv)
+    }
+  )
+}
 
 def opLT[T](a:T, b:T)(implicit n: Numeric[T]):Boolean = { n.lt(a,b) }
 
-def numPred[D: Numeric](t:D, test:(D,D)=>Boolean):Function[Option[D],Option[D]] = {
-  (d:Option[D]) => {
-    val r:Option[D] = d match {
+def numTestPred[D:Numeric :TypeTag](t:D, test:(D,D)=>Boolean):(CV[D]=>CV[D]) = {
+  (d:CV[D]) => new CV(d.o match {
       case Some(v) => {
         if (test(v, t)) Some(v)
         else None
       }
       case None => None
     }
-    r
-  }
+  )
 }
 
 // type checking and casting
-val isInt = typedPred((x:String)=>x.toInt)
+// ignoring Int and Float as internal types results in
+// shorter case statements for internal conversions, however
+// it might be worth adding them in, particularly Int, since
+// you can say defaultTo(7) instead of defaultTo(7L)
 val isLong = typedPred((x:String)=>x.toLong)
 val isDouble = typedPred((x:String)=>x.toDouble)
 val isString = typedPred((x:String)=>x)
 
 // boundary checking
-def isLT[D:Numeric](t:D):Function[Option[D],Option[D]] = numPred(t, (vv:D,tt:D)=>opLT(vv,tt))
-def isLE[D:Numeric](t:D):Function[Option[D],Option[D]] = numPred(t, (vv:D,tt:D)=>(!opLT(tt,vv)))
-def isGT[D:Numeric](t:D):Function[Option[D],Option[D]] = numPred(t, (vv:D,tt:D)=>opLT(tt,vv))
-def isGE[D:Numeric](t:D):Function[Option[D],Option[D]] = numPred(t, (vv:D,tt:D)=>(!opLT(vv,tt)))
+def isLT[D:Numeric :TypeTag](t:D):(CV[D]=>CV[D]) = numTestPred(t, (vv:D,tt:D)=>opLT(vv,tt))
+def isLE[D:Numeric :TypeTag](t:D):(CV[D]=>CV[D]) = numTestPred(t, (vv:D,tt:D)=>(!opLT(tt,vv)))
+def isGT[D:Numeric :TypeTag](t:D):(CV[D]=>CV[D]) = numTestPred(t, (vv:D,tt:D)=>opLT(tt,vv))
+def isGE[D:Numeric :TypeTag](t:D):(CV[D]=>CV[D]) = numTestPred(t, (vv:D,tt:D)=>(!opLT(vv,tt)))
 
-// interval checking
-def isOnClosed[D:Numeric](l:D,u:D):Function[Option[D],Option[D]] = isGE(l) andThen isLE(u)
-def isOnOpen[D:Numeric](l:D,u:D):Function[Option[D],Option[D]] = isGT(l) andThen isLT(u)
-
-// default assignment
-def defaultTo[D](dv:D):Function[Option[D],Option[D]] = {
-  (d:Option[D]) => {
-    d match {
-      case Some(v) => Some(v)
-      case None => Some(dv)
-    }
-  }
-}
+type MetaConfiguration = Map[String, Function[Option[String], CV[_]]]
 
 // holds a configuration, and imports configuration requirements
 // (requirements are defined below)
-class Config extends ConfigReqs {
+class Config(mc: MetaConfiguration) {
+  val metaConfig = mc 
   val conf: mutable.Map[String, String] = mutable.Map()
 
   def put[T](s:String, v:T, check:Boolean=true):Unit = {
@@ -83,32 +135,22 @@ class Config extends ConfigReqs {
     if (check) conf.get(s)
   }
 
-  def get(s:String):Any = {
-    val f = reqmap.getOrElse(s, isString)
+  def get(s:String):CV[Any] = {
+    val f = metaConfig.getOrElse(s, isString)
     f(conf.get(s))
   }
 }
 
 // here is where you define policies for each config variable
 // this could reside in its own file for easy maintenance
-trait ConfigReqs {
-  val reqmap:Map[String, FunctionTP[Option[String], _]] = Map(
-    // an integer, >= 10
-    "a" -> (isInt andThen isGE(10) andThen defaultTo(10)),
+val metaConfigExample:MetaConfiguration = Map(
+  "a" -> (isLong | defaultTo(42L) | isGE(0L)),
+ 
+  "b" -> (isDouble | defaultTo(3.14) | isGE(0.0) | isLT(6.28)),
 
-    // a double, > 0.0 and < 1.0
-    "b" -> (isDouble andThen isGT(0.0) andThen isLT(1.0) andThen defaultTo(0.75)),
+  "c" -> (isLong | defaultTo(1L) | isGT(0L)),
 
-    // a long >= 0 and <= 100
-    "c" -> (isLong andThen isOnClosed(0L, 100L) andThen defaultTo(50L)),
+  "z" -> (isString | defaultTo("wowbagger"))
+)
 
-    // a string, default to "foo"
-    "z" -> (isString andThen defaultTo("foo"))
-  )
-}
-
-val conf = new Config
-conf.put("a", 15)
-println(conf.get("a"))
-conf.put("a", 5)
-println(conf.get("a"))
+val conf = new Config(metaConfigExample)
