@@ -1,9 +1,8 @@
 
 import scala.collection.mutable
 import scala.language.implicitConversions
-import scala.reflect.runtime.universe.{TypeTag, TypeRef, typeOf}
 
-// a function that supports "|" operator
+// a function that supports "|" operator as shorthand for andThen
 class PF[D,R](f:D=>R) extends Function[D,R] {
   val func = f
   def apply(d:D):R = func(d)
@@ -12,17 +11,16 @@ class PF[D,R](f:D=>R) extends Function[D,R] {
 
 case class ConfigaroConversionException(message:String) extends Exception(message)
 
-def conversionExceptionMessage[T:TypeTag](o: Option[T]):String = {
-  val tString = typeOf[T].toString
-  val vString = o match {
-    case Some(v) => "Some(" + v.toString + ")"
-    case None => "None"
+def conversionExceptionMessage[T](o: Option[T]):String = {
+  val (tString, vString) = o match {
+    case Some(v) => (v.getClass.getName, v.toString) 
+    case None => ("None", "None")
   }
-  s"Cannot convert Option[$tString] = $vString"
+  s"Failed to convert CV[$tString] = $vString to the requested type"
 }
 
 // a configured value, for supporting type conversions
-class CV[+T:TypeTag](op:Option[T]) {
+class CV[+T](op:Option[T]) {
   val o = op
 
   def toLong:Long = o match {
@@ -63,17 +61,17 @@ class CV[+T:TypeTag](op:Option[T]) {
 object Convert {
   implicit def cvToOption[T](cv:CV[T]):Option[T] = cv.o
 
-  implicit def cvToLong[T:TypeTag](cv:CV[T]):Long = cv.toLong
-  implicit def cvToInt[T:TypeTag](cv:CV[T]):Int = cv.toInt
-  implicit def cvToDouble[T:TypeTag](cv:CV[T]):Double = cv.toDouble
-  implicit def cvToFloat[T:TypeTag](cv:CV[T]):Float = cv.toFloat
-  implicit def cvToString[T:TypeTag](cv:CV[T]):String = cv.toString
+  implicit def cvToLong[T](cv:CV[T]):Long = cv.toLong
+  implicit def cvToInt[T](cv:CV[T]):Int = cv.toInt
+  implicit def cvToDouble[T](cv:CV[T]):Double = cv.toDouble
+  implicit def cvToFloat[T](cv:CV[T]):Float = cv.toFloat
+  implicit def cvToString[T](cv:CV[T]):String = cv.toString
 }
 import Convert._
 
 
 // Generates a function that applies a function 'f' to option payloads
-def typedPred[D,R:TypeTag](f:D=>R):PF[Option[D],CV[R]] = {
+def typedPred[D,R](f:D=>R):PF[Option[D],CV[R]] = {
   new PF((d:Option[D]) => new CV(try {
     d match {
       case Some(v) => Some(f(v))
@@ -86,7 +84,7 @@ def typedPred[D,R:TypeTag](f:D=>R):PF[Option[D],CV[R]] = {
 }
 
 // default assignment
-def defaultTo[D:TypeTag](dv:D):Function[CV[D],CV[D]] = {
+def defaultTo[D](dv:D):Function[CV[D],CV[D]] = {
   (d:CV[D]) => new CV(d.o match {
       case Some(v) => Some(v)
       case None => Some(dv)
@@ -96,13 +94,16 @@ def defaultTo[D:TypeTag](dv:D):Function[CV[D],CV[D]] = {
 
 def opLT[T](a:T, b:T)(implicit n: Numeric[T]):Boolean = { n.lt(a,b) }
 
-def numTestPred[D:Numeric :TypeTag](t:D, test:(D,D)=>Boolean):(CV[D]=>CV[D]) = {
-  (d:CV[D]) => new CV(d.o match {
-      case Some(v) => {
-        if (test(v, t)) Some(v)
-        else None
+def numTestPred[D:Numeric](t:D, test:(D,D)=>Boolean):(CV[D]=>CV[D]) = {
+  (d:CV[D]) => new CV(
+    try {
+      d.o match {
+        case Some(v) if (test(v, t)) => Some(v)
+        case _ => throw new Exception
       }
-      case None => None
+    } catch {
+      // support alternate failure response policies here
+      case _: Throwable => None
     }
   )
 }
@@ -117,10 +118,10 @@ val isDouble = typedPred((x:String)=>x.toDouble)
 val isString = typedPred((x:String)=>x)
 
 // boundary checking
-def isLT[D:Numeric :TypeTag](t:D):(CV[D]=>CV[D]) = numTestPred(t, (vv:D,tt:D)=>opLT(vv,tt))
-def isLE[D:Numeric :TypeTag](t:D):(CV[D]=>CV[D]) = numTestPred(t, (vv:D,tt:D)=>(!opLT(tt,vv)))
-def isGT[D:Numeric :TypeTag](t:D):(CV[D]=>CV[D]) = numTestPred(t, (vv:D,tt:D)=>opLT(tt,vv))
-def isGE[D:Numeric :TypeTag](t:D):(CV[D]=>CV[D]) = numTestPred(t, (vv:D,tt:D)=>(!opLT(vv,tt)))
+def isLT[D:Numeric](t:D):(CV[D]=>CV[D]) = numTestPred(t, (vv:D,tt:D)=>opLT(vv,tt))
+def isLE[D:Numeric](t:D):(CV[D]=>CV[D]) = numTestPred(t, (vv:D,tt:D)=>(!opLT(tt,vv)))
+def isGT[D:Numeric](t:D):(CV[D]=>CV[D]) = numTestPred(t, (vv:D,tt:D)=>opLT(tt,vv))
+def isGE[D:Numeric](t:D):(CV[D]=>CV[D]) = numTestPred(t, (vv:D,tt:D)=>(!opLT(vv,tt)))
 
 type MetaConfiguration = Map[String, Function[Option[String], CV[_]]]
 
