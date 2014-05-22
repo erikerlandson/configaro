@@ -165,9 +165,13 @@ class Config(mc: MetaConfiguration) extends Function[String, CV[Any]] {
   }
 
   def get[T:ConvertCVToV](s:String):Option[T] = {
-    val conv = implicitly[ConvertCVToV[T]]
-    val cv = this(s)
-    if (cv.isNone) None else Some(conv.convert(cv))
+    try {
+      val conv = implicitly[ConvertCVToV[T]]
+      val cv = this(s)
+      if (cv.isNone) None else Some(conv.convert(cv))
+    } catch {
+      case _: Throwable => None
+    }
   }
 
   def getOrElse[T:ConvertCVToV](s:String, d:T):T = {
@@ -183,11 +187,11 @@ class Config(mc: MetaConfiguration) extends Function[String, CV[Any]] {
 // here is where you define policies for each config variable
 // this could reside in its own file for easy maintenance
 val metaConfigExample:MetaConfiguration = Map(
-  "a" -> (isLong | defaultTo(42L) | isGE(0L)),
+  "a" -> (isLong | isGE(0L) | defaultTo(42L)),
  
-  "b" -> (isDouble | defaultTo(3.14) | isGE(0.0) | isLT(6.28)),
+  "b" -> (isDouble | isGE(0.0) | isLT(6.28) | defaultTo(3.14)),
 
-  "c" -> (isLong | defaultTo(1L) | isGT(0L)),
+  "c" -> (isLong | isGT(0L) | defaultTo(1L)),
 
   "z" -> (isString | defaultTo("wowbagger"))
 )
@@ -203,7 +207,7 @@ assert(conf.require[String]("a") == "42")
 conf.put("a", 7)
 assert(conf.require[Int]("a") == 7)
 
-conf.put("a", -1)
-assert(conf.get[Int]("a") == None)
-
-assert(conf.getOrElse[Int]("a", 8) == 8)
+conf.put("q", "foo")
+assert(conf.get[String]("q") == Some("foo"))
+assert(conf.get[Int]("q") == None)
+assert(conf.getOrElse[Int]("q", 77) == 77)
