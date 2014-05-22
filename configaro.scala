@@ -9,6 +9,15 @@ class PF[D,R](f:D=>R) extends Function[D,R] {
   def |[S](g:R=>S):PF[D,S] = new PF(func andThen g)
 }
 
+// a configured value, for supporting type conversions
+class CV[+T](op:Option[T]) {
+  val o = op
+  def isNone:Boolean = o match {
+    case None => true
+    case _ => false
+  }
+}
+
 case class ConfigaroConversionException(message:String) extends Exception(message)
 
 def conversionExceptionMessage[T](o: Option[T]):String = {
@@ -19,53 +28,69 @@ def conversionExceptionMessage[T](o: Option[T]):String = {
   s"Failed to convert CV[$tString] = $vString to the requested type"
 }
 
-// a configured value, for supporting type conversions
-class CV[+T](op:Option[T]) {
-  val o = op
+trait ConvertCVToV[V] {
+  def convert(cv:CV[Any]):V
+}
 
-  def toLong:Long = o match {
-    case Some(v: Long) => v
-    case Some(v: Double) if v == v.toLong.toDouble => v.toLong
-    case _ => throw new ConfigaroConversionException(conversionExceptionMessage(o))
+object ConvertCVToVObjects {
+  implicit val objectCVToLong = new ConvertCVToV[Long] {
+    def convert(cv:CV[Any]):Long = cv.o match {
+      case Some(v: Long) => v
+      case Some(v: Double) if v == v.toLong.toDouble => v.toLong
+      case _ => throw new ConfigaroConversionException(conversionExceptionMessage(cv.o))
+    }
   }
-
-  def toInt:Int = o match {
-    case Some(v: Long) if v == v.toInt.toLong => v.toInt
-    case Some(v: Double) if v == v.toInt.toDouble => v.toInt
-    case _ => throw new ConfigaroConversionException(conversionExceptionMessage(o))
+  implicit val objectCVToInt = new ConvertCVToV[Int] {
+    def convert(cv:CV[Any]):Int = cv.o match {
+      case Some(v: Long) if v == v.toInt.toLong => v.toInt
+      case Some(v: Double) if v == v.toInt.toDouble => v.toInt
+      case _ => throw new ConfigaroConversionException(conversionExceptionMessage(cv.o))
+    }
   }
-
-  def toDouble:Double = o match {
-    case Some(v: Long) => v.toDouble
-    case Some(v:Double) => v
-    case _ => throw new ConfigaroConversionException(conversionExceptionMessage(o))
+  implicit val objectCVToDouble = new ConvertCVToV[Double] {
+    def convert(cv:CV[Any]):Double = cv.o match {
+      case Some(v: Long) => v.toDouble
+      case Some(v:Double) => v
+      case _ => throw new ConfigaroConversionException(conversionExceptionMessage(cv.o))
+    }
   }
-
-  def toFloat:Float = o match {
-    case Some(v: Long) => v.toFloat
-    case Some(v:Double) => v.toFloat
-    case _ => throw new ConfigaroConversionException(conversionExceptionMessage(o))
+  implicit val objectCVToFloat = new ConvertCVToV[Float] {
+    def convert(cv:CV[Any]):Float = cv.o match {
+      case Some(v: Long) => v.toFloat
+      case Some(v:Double) => v.toFloat
+      case _ => throw new ConfigaroConversionException(conversionExceptionMessage(cv.o))
+    }
   }
-
-  override def toString:String = o match {
-    case Some(v) => v.toString
-    // This is a compromise.  If I throw an exception here, like the toXxx above, it
-    // will cause exception when something like conf.get("undefined") is invoked 
-    // inside the REPL.  Also, this at least respects the convention that any value
-    // can be converted to String.  
-    // Maybe there is a better solution?
-    case None => "None"
+  implicit val objectCVToString = new ConvertCVToV[String] {
+    def convert(cv:CV[Any]):String = cv.o match {
+      case Some(v) => v.toString
+      case _ => throw new ConfigaroConversionException(conversionExceptionMessage(cv.o))
+    }
   }
 }
 
-object Convert {
-  implicit def cvToOption[T](cv:CV[T]):Option[T] = cv.o
+import ConvertCVToVObjects._
 
-  implicit def cvToLong[T](cv:CV[T]):Long = cv.toLong
-  implicit def cvToInt[T](cv:CV[T]):Int = cv.toInt
-  implicit def cvToDouble[T](cv:CV[T]):Double = cv.toDouble
-  implicit def cvToFloat[T](cv:CV[T]):Float = cv.toFloat
-  implicit def cvToString[T](cv:CV[T]):String = cv.toString
+def convertCVToV[V:ConvertCVToV](cv:CV[Any]):V = {
+  val conv = implicitly[ConvertCVToV[V]]
+  conv.convert(cv)
+}
+
+object Convert {
+/*
+  Scala does not seem to handle generic implicit conversion return types.
+  It compiles, but it never matches at run time
+  implicit def convertCVToV[V:ConvertCVToV](cv:CV[Any]):V = {
+    val conv = implicitly[ConvertCVToV[V]]
+    conv.convert(cv)
+  }
+*/
+
+  implicit def convertCVToLong(cv:CV[Any]):Long = objectCVToLong.convert(cv)
+  implicit def convertCVToInt(cv:CV[Any]):Int = objectCVToInt.convert(cv)
+  implicit def convertCVToDouble(cv:CV[Any]):Double = objectCVToDouble.convert(cv)
+  implicit def convertCVToFloat(cv:CV[Any]):Float = objectCVToFloat.convert(cv)
+  implicit def convertCVToString(cv:CV[Any]):String = objectCVToString.convert(cv)
 }
 import Convert._
 
@@ -127,18 +152,31 @@ type MetaConfiguration = Map[String, Function[Option[String], CV[_]]]
 
 // holds a configuration, and imports configuration requirements
 // (requirements are defined below)
-class Config(mc: MetaConfiguration) {
-  val metaConfig = mc 
+class Config(mc: MetaConfiguration) extends Function[String, CV[Any]] {
+  val metaConfig = mc
   val conf: mutable.Map[String, String] = mutable.Map()
+
+  def apply(s:String):CV[Any] = {
+    metaConfig.getOrElse(s, isString)(conf.get(s))
+  }
 
   def put[T](s:String, v:T, check:Boolean=true):Unit = {
     conf.put(s, v.toString)
-    if (check) conf.get(s)
   }
 
-  def get(s:String):CV[Any] = {
-    val f = metaConfig.getOrElse(s, isString)
-    f(conf.get(s))
+  def get[T:ConvertCVToV](s:String):Option[T] = {
+    val conv = implicitly[ConvertCVToV[T]]
+    val cv = this(s)
+    if (cv.isNone) None else Some(conv.convert(cv))
+  }
+
+  def getOrElse[T:ConvertCVToV](s:String, d:T):T = {
+    get[T](s).getOrElse(d)
+  }
+
+  def require[T:ConvertCVToV](s:String):T = {
+    val conv = implicitly[ConvertCVToV[T]]
+    conv.convert(this(s))
   }
 }
 
@@ -155,3 +193,17 @@ val metaConfigExample:MetaConfiguration = Map(
 )
 
 val conf = new Config(metaConfigExample)
+
+assert(conf.require[Int]("a") == 42)
+assert(conf.require[Long]("a") == 42L)
+assert(conf.require[Double]("a") == 42.0)
+assert(conf.require[Float]("a") == 42f)
+assert(conf.require[String]("a") == "42")
+
+conf.put("a", 7)
+assert(conf.require[Int]("a") == 7)
+
+conf.put("a", -1)
+assert(conf.get[Int]("a") == None)
+
+assert(conf.getOrElse[Int]("a", 8) == 8)
