@@ -2,40 +2,42 @@ import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.language.postfixOps
 
+class CV[+T](op:Option[T]) {
+  val o = op
+}
+
 trait Meta {
-  val map: mutable.Map[String, String] = mutable.Map()
+  val map: mutable.Map[String, Function[Option[String], CV[Any]]] = mutable.Map()
 
-  trait HasTypeSym[T] {
-    def sym:Symbol
+  trait TypeConverter[T] {
+    def func: Function[Option[String], CV[T]]
   }
 
-  implicit val typeSymLong = new HasTypeSym[Long] { def sym:Symbol = Symbol("Long") }
-
-  def typ[T:HasTypeSym]:Symbol = {
-    val sym = implicitly[HasTypeSym[T]]
-    sym.sym
+  implicit val tcLong = new TypeConverter[Long] {
+     def func: Function[Option[String], CV[Long]] = (d:Option[String]) => new CV(d.map(_.toLong))
   }
 
-  class Context(ss:String) {
-    val key = ss
+  def typ[T:TypeConverter]:Function[Option[String], CV[T]] = {
+    val tc = implicitly[TypeConverter[T]]
+    tc.func
+  }
 
-    def is(tsym:Symbol):this.type = {
-      map(key) = map(key) + (" is"+ tsym.toString)
-      this
+  class Context[R](k:String, f:Function[Option[String],R]) {
+    val key = k
+    val func = f
+
+    def is[S](g:Function[R,CV[S]]):Context[CV[S]] = {
+      val h = func andThen g
+      map(key) = h
+      new Context(key, h)
     }
-
-    def gt[T:Numeric](t:T):this.type = {
-      map(key) = map(key) + s" > $t"
-      this
-    }
-
   }
 
-  implicit def handleString(s:String):Context = {
-    println(s"handling string $s")
+  implicit def handleString(s:String):Context[Option[String]] = {
     println(s"resetting string $s")
-    map(s) = s
+    map -= s
     println(s"returning new context for $s")
-    new Context(s)
+    val id = (x:Option[String])=>x
+    new Context(s, id)
   }
 }
