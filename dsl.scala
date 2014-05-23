@@ -16,6 +16,13 @@ trait Meta {
   implicit val tcLong = new TypeConverter[Long] {
      def func: Function[Option[String], CV[Long]] = (d:Option[String]) => new CV(d.map(_.toLong))
   }
+  implicit val tcDouble = new TypeConverter[Double] {
+     def func: Function[Option[String], CV[Double]] = (d:Option[String]) => new CV(d.map(_.toDouble))
+  }
+  implicit val tcString = new TypeConverter[String] {
+     def func: Function[Option[String], CV[String]] = (d:Option[String]) => new CV(d)
+  }
+
 
   def typ[T:TypeConverter]:Function[Option[String], CV[T]] = {
     val tc = implicitly[TypeConverter[T]]
@@ -34,10 +41,7 @@ trait Meta {
   }
 
   implicit def handleString(s:String):Context[Option[String]] = {
-    println(s"resetting string $s")
     map -= s
-    println(s"returning new context for $s")
-    val id = (x:Option[String])=>x
-    new Context(s, id)
+    new Context(s, (x:Option[String])=>x)
   }
 }
