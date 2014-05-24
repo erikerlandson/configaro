@@ -220,7 +220,13 @@ class Config(mc: MetaConfiguration) extends Function[String, Option[Any]] {
   }
 
   def get[T:ConvertOptionToV](s:String):Option[T] = {
-    this(s).map(implicitly[ConvertOptionToV[T]].convert)
+    try { 
+      this(s).map(implicitly[ConvertOptionToV[T]].convert) 
+    } catch {
+      // A failure to convert to a supported type goes to None,
+      // for consistency with behavior of meta-policy type filters
+      case ConfigaroConversionException(_) => None
+    }
   }
 
   def getOrElse[T:ConvertOptionToV](s:String, d:T):T = {
@@ -259,3 +265,4 @@ assert(conf.require[Int]("a") == 7)
 conf.put("q", "foo")
 assert(conf.get[String]("q") == Some("foo"))
 assert(conf.require[String]("q") == "foo")
+assert(conf.get[Int]("q") == None)
