@@ -221,6 +221,11 @@ class Config(mc: MetaConfiguration) extends Function[String, Option[Any]] {
   }
 }
 
+def properName(v:String):String = {
+   if (!("""^[A-Z][a-z]+$""".r.findFirstIn(v).nonEmpty)) throw PolicyViolation(s"string $v is not proper name")
+   v
+}
+
 // here is where you define policies for each config variable
 // this could reside in its own file for easy maintenance
 object metaConfigExample extends MetaConfiguration {
@@ -239,7 +244,9 @@ object metaConfigExample extends MetaConfiguration {
   policy notify ((e:PolicyViolation)=>{ System.err.println("Say it's not so!! " + e.toString) })
   "age" is tpe[Int] default 45 ge 0 le 150
 
-  "name" is tpe[String] default "wowbagger"
+  // pipe in a custom filter function
+  // note that Option[] layer boilerplate is added automatically
+  "name" is tpe[String] default "Wowbagger" pipe properName
 }
 
 val conf = new Config(metaConfigExample)
@@ -273,3 +280,8 @@ try {
 } catch {
   case e: Throwable => println(e.toString)
 }
+
+assert(conf.get[String]("name") == Some("Wowbagger"))
+conf.put("name", "zaphod")
+// this will cause a warning message
+assert(conf.get[String]("name") == None)
