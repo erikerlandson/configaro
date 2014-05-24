@@ -24,6 +24,7 @@ import scala.language.postfixOps
 case class ConversionException(message:String) extends Exception(message)
 case class PolicyViolation(msg:String) extends Exception(msg)
 
+type Notifier = PolicyViolation=>Unit
 
 def conversionMessage(v:Any):String = {
   val tString = v.getClass.getName
@@ -112,37 +113,17 @@ trait MetaConfiguration {
     def func = (s:String) => try { s.toString } catch { case _ :Throwable => throw new PolicyViolation(conversionMessage(s)) }
   }
 
-  private var enforceLevelGlobal = 'none
+  private var notifierGlobal:Notifier = (e:PolicyViolation)=>{}
 
-  private def enforceCheck(level:Symbol):Unit = {
-    level match {
-      case 'none | 'warn | 'error => return
-      case _ => throw new Exception("undefined enforce level "+level)
-    }
-  }
+  def notify(n:Notifier):Unit = { notifierGlobal = n }
 
-  def enforce(level:Symbol):Unit = {
-    enforceCheck(level)
-    enforceLevelGlobal = level
-  }
-
-  private def wrap[E,S](g:E=>S, level:Symbol):(Option[E]=>Option[S]) = {
-    enforceCheck(level)
+  private def wrap[E,S](g:E=>S, notifier:Notifier):(Option[E]=>Option[S]) = {
     (d:Option[E]) => try {
       d.map(g)
     } catch {
-      case PolicyViolation(msg) => level match {
-        case 'none => None
-        case 'warn => {
-          // generalized logging goes here
-          System.err.println("WARNING: "+msg)
-          None
-        }
-        case 'error | _  => {
-          // generalized logging goes here
-          System.err.println("ERROR: "+msg)
-          throw new PolicyViolation(msg)
-        }
+      case pv:PolicyViolation => {
+        notifier(pv)
+        None
       }
     }
   }
@@ -151,27 +132,26 @@ trait MetaConfiguration {
 
   def opLT[T](a:T, b:T)(implicit n: Numeric[T]):Boolean = { n.lt(a,b) }
 
-  class Context[R](k:String, f:Option[String]=>Option[R], level:Symbol) {
+  class Context[R](k:String, f:Option[String]=>Option[R], n:Notifier) {
     private val key = k
     private val func = f
-    private var enforceLevel = level
+    private var notifier = n
 
     private def comp[S>:R,T](g:Option[S]=>Option[T]):Context[T] = {
       val h = func andThen g
       map(key) = h
-      new Context(key, h, enforceLevel)
+      new Context(key, h, notifier)
     }
 
     // configures scoped to current parameter context
-    def enforce(lev:Symbol):Context[R] = {
-      enforceCheck(lev)
-      enforceLevel = lev
+    def notify(n:Notifier):Context[R] = { 
+      notifier = n 
       this
     }
 
     // pipe in a new function, automatically wrapped in 
     // Option, violation and logging boilerplate
-    def pipe[S>:R,T](g:S=>T):Context[T] = comp(wrap(g, enforceLevel))
+    def pipe[S>:R,T](g:S=>T):Context[T] = comp(wrap(g, notifier))
 
     // for accepting type conversion/constraint predicates
     // i.e.  is tpe[Long]
@@ -186,22 +166,22 @@ trait MetaConfiguration {
 
     // boundary checking
     def lt[D >: R :Numeric](t:D):Context[D] = pipe((x:D) => {
-      if (!opLT(x,t)) throw PolicyViolation("$x >= $t")
+      if (!opLT(x,t)) throw PolicyViolation(s"$x >= $t")
       x})
     def le[D >: R :Numeric](t:D):Context[D] = pipe((x:D) => {
-      if (opLT(t,x)) throw PolicyViolation("$x > $t")
+      if (opLT(t,x)) throw PolicyViolation(s"$x > $t")
       x})
     def gt[D >: R :Numeric](t:D):Context[D] = pipe((x:D) => {
-      if (!opLT(t,x)) throw PolicyViolation("$x <= $t")
+      if (!opLT(t,x)) throw PolicyViolation(s"$x <= $t")
       x})
     def ge[D >: R :Numeric](t:D):Context[D] = pipe((x:D) => {
-      if (opLT(x,t)) throw PolicyViolation("$x < $t")
+      if (opLT(x,t)) throw PolicyViolation(s"$x < $t")
       x})
   }
 
   implicit def handleString(s:String):Context[String] = {
     map -= s
-    new Context(s, (x:Option[String])=>x, enforceLevelGlobal)
+    new Context(s, (x:Option[String])=>x, notifierGlobal)
   }
 }
 
@@ -244,10 +224,21 @@ class Config(mc: MetaConfiguration) extends Function[String, Option[Any]] {
 // here is where you define policies for each config variable
 // this could reside in its own file for easy maintenance
 object metaConfigExample extends MetaConfiguration {
+  // configure a simple notification policy that dumps PolicyViolation 
+  // exceptions to standard error
+  policy notify ((e:PolicyViolation)=>{ System.err.println(e.toString) })
+
   "a" is tpe[Long] default 42L
   "b" is tpe[Int] default -1
-  "radians" is tpe[Double] default 3.1415 ge 0.0 lt 6.2830
+
+  // notify can appear anywhere, and multiple times, for each param declaration
+  // override notify for bounds checking on "radians" to be fatal:
+  "radians" is tpe[Double] default 3.1415 notify ((e:PolicyViolation)=>{ throw e }) ge 0.0 lt 6.2830
+
+  // update 'global' notify policy here
+  policy notify ((e:PolicyViolation)=>{ System.err.println("Say it's not so!! " + e.toString) })
   "age" is tpe[Int] default 45 ge 0 le 150
+
   "name" is tpe[String] default "wowbagger"
 }
 
@@ -262,7 +253,23 @@ assert(conf.require[String]("a") == "42")
 conf.put("a", 7)
 assert(conf.require[Int]("a") == 7)
 
+// this will cause a message to stderr
+conf.put("a", "!!!")
+assert(conf.require[Int]("a") == 42)
+
 conf.put("q", "foo")
 assert(conf.get[String]("q") == Some("foo"))
 assert(conf.require[String]("q") == "foo")
 assert(conf.get[Int]("q") == None)
+
+// this will cause a different message to stderr
+conf.put("age", -1)
+assert(conf.get[Int]("age") == None)
+
+try {
+  conf.put("radians", 7.0)
+  // this will throw, due to customized notify for "radians"
+  conf.get[Double]("radians")
+} catch {
+  case e: Throwable => println(e.toString)
+}
