@@ -21,11 +21,11 @@ import scala.language.implicitConversions
 import scala.language.postfixOps
 
 
-case class ConfigaroConversionException(message:String) extends Exception(message)
+case class ConversionException(message:String) extends Exception(message)
 case class PolicyViolation(msg:String) extends Exception(msg)
 
 
-def conversionExceptionMessage(v:Any):String = {
+def conversionMessage(v:Any):String = {
   val tString = v.getClass.getName
   s"Failed to convert $tString = $v to the requested type"
 }
@@ -42,7 +42,7 @@ implicit val objectOptionToLong = new ConvertOptionToV[Long] {
       case _ => throw new Exception
     }
   } catch {
-    case _: Throwable => throw new ConfigaroConversionException(conversionExceptionMessage(cv))
+    case _: Throwable => throw new ConversionException(conversionMessage(cv))
   }
 }
 implicit val objectOptionToInt = new ConvertOptionToV[Int] {
@@ -53,7 +53,7 @@ implicit val objectOptionToInt = new ConvertOptionToV[Int] {
       case _ => throw new Exception
     }
   } catch {
-    case _: Throwable => throw new ConfigaroConversionException(conversionExceptionMessage(cv))
+    case _: Throwable => throw new ConversionException(conversionMessage(cv))
   }  
 }
 implicit val objectOptionToDouble = new ConvertOptionToV[Double] {
@@ -64,7 +64,7 @@ implicit val objectOptionToDouble = new ConvertOptionToV[Double] {
       case _ => throw new Exception
     }
   } catch {
-    case _: Throwable => throw new ConfigaroConversionException(conversionExceptionMessage(cv))
+    case _: Throwable => throw new ConversionException(conversionMessage(cv))
   }
 }
 implicit val objectOptionToFloat = new ConvertOptionToV[Float] {
@@ -75,14 +75,14 @@ implicit val objectOptionToFloat = new ConvertOptionToV[Float] {
       case _ => throw new Exception
     }
   } catch {
-    case _: Throwable => throw new ConfigaroConversionException(conversionExceptionMessage(cv))
+    case _: Throwable => throw new ConversionException(conversionMessage(cv))
   }
 }
 implicit val objectOptionToString = new ConvertOptionToV[String] {
   def convert(cv:Any):String = try {
     cv.toString
   } catch {
-    case _: Throwable => throw new ConfigaroConversionException(conversionExceptionMessage(cv))
+    case _: Throwable => throw new ConversionException(conversionMessage(cv))
   }
 }
 
@@ -97,19 +97,19 @@ trait MetaConfiguration {
   }
 
   implicit val tcLong = new TypeConverter[Long] {
-    def func = (s:String) => try { s.toLong } catch { case _ :Throwable => throw new PolicyViolation(conversionExceptionMessage(s)) }
+    def func = (s:String) => try { s.toLong } catch { case _ :Throwable => throw new PolicyViolation(conversionMessage(s)) }
   }
   implicit val tcInt = new TypeConverter[Int] {
-    def func = (s:String) => try { s.toInt } catch { case _ :Throwable => throw new PolicyViolation(conversionExceptionMessage(s)) }
+    def func = (s:String) => try { s.toInt } catch { case _ :Throwable => throw new PolicyViolation(conversionMessage(s)) }
   }
   implicit val tcDouble = new TypeConverter[Double] {
-    def func = (s:String) => try { s.toDouble } catch { case _ :Throwable => throw new PolicyViolation(conversionExceptionMessage(s)) }
+    def func = (s:String) => try { s.toDouble } catch { case _ :Throwable => throw new PolicyViolation(conversionMessage(s)) }
   }
   implicit val tcFloat = new TypeConverter[Float] {
-    def func = (s:String) => try { s.toFloat } catch { case _ :Throwable => throw new PolicyViolation(conversionExceptionMessage(s)) }
+    def func = (s:String) => try { s.toFloat } catch { case _ :Throwable => throw new PolicyViolation(conversionMessage(s)) }
   }
   implicit val tcString = new TypeConverter[String] {
-    def func = (s:String) => try { s.toString } catch { case _ :Throwable => throw new PolicyViolation(conversionExceptionMessage(s)) }
+    def func = (s:String) => try { s.toString } catch { case _ :Throwable => throw new PolicyViolation(conversionMessage(s)) }
   }
 
   private var enforceLevelGlobal = 'none
@@ -225,7 +225,7 @@ class Config(mc: MetaConfiguration) extends Function[String, Option[Any]] {
     } catch {
       // A failure to convert to a supported type goes to None,
       // for consistency with behavior of meta-policy type filters
-      case ConfigaroConversionException(_) => None
+      case ConversionException(_) => None
     }
   }
 
@@ -236,7 +236,7 @@ class Config(mc: MetaConfiguration) extends Function[String, Option[Any]] {
   def require[T:ConvertOptionToV](s:String):T = {
     this(s) match {
       case Some(v) => implicitly[ConvertOptionToV[T]].convert(v)
-      case None => throw new ConfigaroConversionException(conversionExceptionMessage(None))
+      case None => throw new ConversionException(conversionMessage(None))
     }
   }
 }
