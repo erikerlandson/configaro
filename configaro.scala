@@ -20,10 +20,17 @@ import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.language.postfixOps
 
-
+// exception thrown when a requested type conversion fails
 case class ConversionException(message:String) extends Exception(message)
+
+// exception thrown by a core filter function if the incoming value
+// did not satisfy some intended property.
 case class PolicyViolation(msg:String) extends Exception(msg)
 
+// A 'notifier' is a client-configured function for handling
+// (or "notifying") policy violations from component filters.
+// Examples of policy violations are failure to convert a string to a type,
+// or failing to satisfy some predicate, such as 'value > threshold'.
 type Notifier = PolicyViolation=>Unit
 
 def conversionMessage(v:Any):String = {
@@ -125,6 +132,17 @@ trait MetaConfiguration {
 
   def notify(n:Notifier):Unit = { notifierGlobal = n }
 
+  // wrap embodies the core meta-config model: 
+  // A meta policy for a parameter is a function from Option[String] => Option[T],
+  // usually composed of multiple composed filtering functions.
+  // A core filter function is applied to an Option using map, so None (missing value)
+  // is never an error, it is simply passed along.
+  // If a core filter throws type PolicyViolation, that signals the incoming value
+  // violated some policy for that filter.  In this case, a 'notifier' is called for
+  // that PolicyViolation instance, which is client specified (it might log a message,
+  // throw an exception for 'fatal' behavior, etc) and defaults to 'do nothing'
+  // Once the notifier is invoked, None is always returned (assuming the notifier did
+  // not throw)
   private def wrap[E,S](g:E=>S, notifier:Notifier):(Option[E]=>Option[S]) = {
     (d:Option[E]) => try {
       d.map(g)
@@ -158,7 +176,7 @@ trait MetaConfiguration {
     }
 
     // pipe in a new function, automatically wrapped in 
-    // Option, violation and logging boilerplate
+    // Option and violation logic
     def pipe[S>:R,T](g:S=>T):Context[T] = comp(wrap(g, notifier))
 
     // for accepting type conversion/constraint predicates
@@ -207,6 +225,10 @@ class Config(mc: MetaConfiguration) extends Function[String, Option[Any]] {
     conf.put(s, v.toString)
   }
 
+  // get operates like get usually does for a Map, except that a
+  // specific requested type must be specified, since parameters can
+  // have different output types from meta-config policies
+  // e.g. conf.get[Int]("param")  -->  Option[Int] = Some(int-value) or None
   def get[T:ConvertOptionToV](s:String):Option[T] = {
     try { 
       this(s).map(implicitly[ConvertOptionToV[T]].convert) 
@@ -217,10 +239,15 @@ class Config(mc: MetaConfiguration) extends Function[String, Option[Any]] {
     }
   }
 
+  // like map.getOrElse, but requires a type:
+  // e.g. conf.getOrElse[Float]("param", 4.5f)  -->  some-int-value
   def getOrElse[T:ConvertOptionToV](s:String, d:T):T = {
     get[T](s).getOrElse(d)
   }
 
+  // Requires param to evaluate to the requested type.  In this case,
+  // Neither conversion failures nor missing values (None) are tolerated
+  // e.g. conf.require[Int]("param")  --> int-value (or die trying)
   def require[T:ConvertOptionToV](s:String):T = {
     this(s) match {
       case Some(v) => implicitly[ConvertOptionToV[T]].convert(v)
@@ -229,6 +256,9 @@ class Config(mc: MetaConfiguration) extends Function[String, Option[Any]] {
   }
 }
 
+// Example of a custom filter.  Tests for a proper name format.
+// If incoming value meets the format, it is passed along, oetherwise a PolicyViolation
+// is thrown to signal the failure.
 def properName(v:String):String = {
    if (!("""^[A-Z][a-z]+$""".r.findFirstIn(v).nonEmpty)) throw PolicyViolation(s"string $v is not proper name")
    v
