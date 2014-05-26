@@ -206,8 +206,9 @@ trait MetaConfiguration {
   }
 
   implicit def handleString(s:String):Context[String] = {
-    map -= s
-    new Context(s, (x:Option[String])=>x, notifierGlobal)
+    val identity = (x:Option[String])=>x
+    map(s) = identity
+    new Context(s, identity, notifierGlobal)
   }
 }
 
@@ -284,7 +285,8 @@ object metaConfigExample extends MetaConfiguration {
 
   // pipe in a custom filter function
   // note that Option[] layer boilerplate is added automatically
-  "name" is tpe[String] default "Wowbagger" pipe properName
+  // type defaults to string: equivalent to 'is tpe[String]'
+  "name" default "Wowbagger" pipe properName
 }
 
 val conf = new Config(metaConfigExample)
