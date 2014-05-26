@@ -186,7 +186,7 @@ trait MetaConfiguration {
     def is[S](g:R=>S):Context[S] = pipe(g)
 
     // replace any missing value (None) with a default
-    def default(dv:R):Context[R] = comp(
+    def default[T <: R](dv:T):Context[R] = comp(
       (d:Option[R]) => d match {
         case Some(v) => Some(v)
         case None => Some(dv)
