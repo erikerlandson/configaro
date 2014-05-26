@@ -104,6 +104,8 @@ implicit val objectOptionToString = new ConvertOptionToV[String] {
 
 
 trait MetaConfiguration {
+  type Regex = scala.util.matching.Regex
+
   val policy = this
 
   val map: mutable.Map[String, Function[Option[String], Option[Any]]] = mutable.Map()
@@ -203,6 +205,11 @@ trait MetaConfiguration {
     def ge[D >: R :Numeric](t:D):Context[D] = pipe((x:D) => {
       if (opLT(x,t)) throw PolicyViolation(s"$x < $t")
       x})
+
+    def regex[S >: R  <: String](r:Regex):Context[S] = pipe((v:S) => {
+      if (!(r.findFirstIn(v).nonEmpty)) throw PolicyViolation(s"String '$v' did not match regex '${r.toString}'")
+      v
+    })
   }
 
   implicit def handleString(s:String):Context[String] = {
@@ -210,6 +217,8 @@ trait MetaConfiguration {
     map(s) = identity
     new Context(s, identity, notifierGlobal)
   }
+
+  implicit def stringToRegex(s:String):Regex = s.r
 }
 
 // holds a configuration, and imports configuration requirements
@@ -287,6 +296,9 @@ object metaConfigExample extends MetaConfiguration {
   // note that Option[] layer boilerplate is added automatically
   // type defaults to string: equivalent to 'is tpe[String]'
   "name" default "Wowbagger" pipe properName
+
+  // regex accepts either a Regex type or a string to be converted to Regex
+  "lastname" regex """^[A-Z][a-z]+$"""
 }
 
 val conf = new Config(metaConfigExample)
@@ -325,3 +337,9 @@ assert(conf.get[String]("name") == Some("Wowbagger"))
 conf.put("name", "zaphod")
 // this will cause a warning message
 assert(conf.get[String]("name") == None)
+
+conf.put("lastname", "Beeblebrox")
+assert(conf.require[String]("lastname") == "Beeblebrox")
+// will cause a message to stderr:
+conf.put("lastname", "beeblebrox")
+assert(conf.get[String]("lastname") == None)
