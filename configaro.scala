@@ -212,7 +212,7 @@ trait MetaConfiguration {
     })
   }
 
-  implicit def handleString(s:String):Context[String] = {
+  implicit def stringToContext(s:String):Context[String] = {
     val identity = (x:Option[String])=>x
     map(s) = identity
     new Context(s, identity, notifierGlobal)
