@@ -25,7 +25,16 @@ case class ConversionException(message:String) extends Exception(message)
 
 // exception thrown by a core filter function if the incoming value
 // did not satisfy some intended property.
-case class PolicyViolation(msg:String) extends Exception(msg)
+sealed class PolicyViolation(val message:String) extends Exception(message)
+
+case class TypePolicyViolation(msg:String) extends PolicyViolation(msg)
+case class BoundPolicyViolation(msg:String) extends PolicyViolation(msg)
+case class RegexPolicyViolation(msg:String) extends PolicyViolation(msg)
+
+// enable PolicyViolation to act like a case class inside a match construct
+object PolicyViolation {
+  def unapply(pv:PolicyViolation):Option[String] = Some(pv.message)
+}
 
 // A 'notifier' is a client-configured function for handling
 // (or "notifying") policy violations from component filters.
@@ -115,19 +124,19 @@ trait MetaConfiguration {
   }
 
   implicit val tcLong = new TypeConverter[Long] {
-    def func = (s:String) => try { s.toLong } catch { case _ :Exception => throw new PolicyViolation(conversionMessage(s)) }
+    def func = (s:String) => try { s.toLong } catch { case _ :Exception => throw new TypePolicyViolation(conversionMessage(s)) }
   }
   implicit val tcInt = new TypeConverter[Int] {
-    def func = (s:String) => try { s.toInt } catch { case _ :Exception => throw new PolicyViolation(conversionMessage(s)) }
+    def func = (s:String) => try { s.toInt } catch { case _ :Exception => throw new TypePolicyViolation(conversionMessage(s)) }
   }
   implicit val tcDouble = new TypeConverter[Double] {
-    def func = (s:String) => try { s.toDouble } catch { case _ :Exception => throw new PolicyViolation(conversionMessage(s)) }
+    def func = (s:String) => try { s.toDouble } catch { case _ :Exception => throw new TypePolicyViolation(conversionMessage(s)) }
   }
   implicit val tcFloat = new TypeConverter[Float] {
-    def func = (s:String) => try { s.toFloat } catch { case _ :Exception => throw new PolicyViolation(conversionMessage(s)) }
+    def func = (s:String) => try { s.toFloat } catch { case _ :Exception => throw new TypePolicyViolation(conversionMessage(s)) }
   }
   implicit val tcString = new TypeConverter[String] {
-    def func = (s:String) => try { s.toString } catch { case _ :Exception => throw new PolicyViolation(conversionMessage(s)) }
+    def func = (s:String) => try { s.toString } catch { case _ :Exception => throw new TypePolicyViolation(conversionMessage(s)) }
   }
 
   private var notifierGlobal:Notifier = (e:PolicyViolation)=>{}
@@ -194,20 +203,20 @@ trait MetaConfiguration {
 
     // boundary checking
     def lt[D >: R :Numeric](t:D):Context[D] = pipe((x:D) => {
-      if (!opLT(x,t)) throw PolicyViolation(s"$x >= $t")
+      if (!opLT(x,t)) throw new BoundPolicyViolation(s"$x >= $t")
       x})
     def le[D >: R :Numeric](t:D):Context[D] = pipe((x:D) => {
-      if (opLT(t,x)) throw PolicyViolation(s"$x > $t")
+      if (opLT(t,x)) throw new BoundPolicyViolation(s"$x > $t")
       x})
     def gt[D >: R :Numeric](t:D):Context[D] = pipe((x:D) => {
-      if (!opLT(t,x)) throw PolicyViolation(s"$x <= $t")
+      if (!opLT(t,x)) throw new BoundPolicyViolation(s"$x <= $t")
       x})
     def ge[D >: R :Numeric](t:D):Context[D] = pipe((x:D) => {
-      if (opLT(x,t)) throw PolicyViolation(s"$x < $t")
+      if (opLT(x,t)) throw new BoundPolicyViolation(s"$x < $t")
       x})
 
     def regex[S >: R  <: String](r:Regex):Context[S] = pipe((v:S) => {
-      if (!(r.findFirstIn(v).nonEmpty)) throw PolicyViolation(s"String '$v' did not match regex '${r.toString}'")
+      if (!(r.findFirstIn(v).nonEmpty)) throw new RegexPolicyViolation(s"String '$v' did not match regex '${r.toString}'")
       v
     })
   }
@@ -270,7 +279,7 @@ class Config(mc: MetaConfiguration) extends Function[String, Option[Any]] {
 // If incoming value meets the format, it is passed along, oetherwise a PolicyViolation
 // is thrown to signal the failure.
 def properName(v:String):String = {
-   if (!("""^[A-Z][a-z]+$""".r.findFirstIn(v).nonEmpty)) throw PolicyViolation(s"string $v is not proper name")
+   if (!("""^[A-Z][a-z]+$""".r.findFirstIn(v).nonEmpty)) throw new PolicyViolation(s"string $v is not proper name")
    v
 }
 
