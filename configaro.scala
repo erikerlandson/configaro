@@ -52,7 +52,7 @@ implicit val objectOptionToInt = new ConvertOptionToV[Int] {
       case _ => throw new Exception
     }
   } catch {
-    case _: Throwable => throw new ConversionException(conversionMessage(cv))
+    case _: Exception => throw new ConversionException(conversionMessage(cv))
   }  
 }
 implicit val objectOptionToLong = new ConvertOptionToV[Long] {
@@ -65,7 +65,7 @@ implicit val objectOptionToLong = new ConvertOptionToV[Long] {
       case _ => throw new Exception
     }
   } catch {
-    case _: Throwable => throw new ConversionException(conversionMessage(cv))
+    case _: Exception => throw new ConversionException(conversionMessage(cv))
   }
 }
 implicit val objectOptionToFloat = new ConvertOptionToV[Float] {
@@ -78,7 +78,7 @@ implicit val objectOptionToFloat = new ConvertOptionToV[Float] {
       case _ => throw new Exception
     }
   } catch {
-    case _: Throwable => throw new ConversionException(conversionMessage(cv))
+    case _: Exception => throw new ConversionException(conversionMessage(cv))
   }
 }
 implicit val objectOptionToDouble = new ConvertOptionToV[Double] {
@@ -91,14 +91,14 @@ implicit val objectOptionToDouble = new ConvertOptionToV[Double] {
       case _ => throw new Exception
     }
   } catch {
-    case _: Throwable => throw new ConversionException(conversionMessage(cv))
+    case _: Exception => throw new ConversionException(conversionMessage(cv))
   }
 }
 implicit val objectOptionToString = new ConvertOptionToV[String] {
   def convert(cv:Any):String = try {
     cv.toString
   } catch {
-    case _: Throwable => throw new ConversionException(conversionMessage(cv))
+    case _: Exception => throw new ConversionException(conversionMessage(cv))
   }
 }
 
@@ -115,19 +115,19 @@ trait MetaConfiguration {
   }
 
   implicit val tcLong = new TypeConverter[Long] {
-    def func = (s:String) => try { s.toLong } catch { case _ :Throwable => throw new PolicyViolation(conversionMessage(s)) }
+    def func = (s:String) => try { s.toLong } catch { case _ :Exception => throw new PolicyViolation(conversionMessage(s)) }
   }
   implicit val tcInt = new TypeConverter[Int] {
-    def func = (s:String) => try { s.toInt } catch { case _ :Throwable => throw new PolicyViolation(conversionMessage(s)) }
+    def func = (s:String) => try { s.toInt } catch { case _ :Exception => throw new PolicyViolation(conversionMessage(s)) }
   }
   implicit val tcDouble = new TypeConverter[Double] {
-    def func = (s:String) => try { s.toDouble } catch { case _ :Throwable => throw new PolicyViolation(conversionMessage(s)) }
+    def func = (s:String) => try { s.toDouble } catch { case _ :Exception => throw new PolicyViolation(conversionMessage(s)) }
   }
   implicit val tcFloat = new TypeConverter[Float] {
-    def func = (s:String) => try { s.toFloat } catch { case _ :Throwable => throw new PolicyViolation(conversionMessage(s)) }
+    def func = (s:String) => try { s.toFloat } catch { case _ :Exception => throw new PolicyViolation(conversionMessage(s)) }
   }
   implicit val tcString = new TypeConverter[String] {
-    def func = (s:String) => try { s.toString } catch { case _ :Throwable => throw new PolicyViolation(conversionMessage(s)) }
+    def func = (s:String) => try { s.toString } catch { case _ :Exception => throw new PolicyViolation(conversionMessage(s)) }
   }
 
   private var notifierGlobal:Notifier = (e:PolicyViolation)=>{}
@@ -330,7 +330,7 @@ try {
   // this will throw, due to customized notify for "radians"
   conf.get[Double]("radians")
 } catch {
-  case e: Throwable => println(e.toString)
+  case e: Exception => println(e.toString)
 }
 
 assert(conf.get[String]("name") == Some("Wowbagger"))
