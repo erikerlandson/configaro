@@ -16,6 +16,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+package com.manyangled.configaro;
+
 import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.language.postfixOps
@@ -36,11 +38,8 @@ object PolicyViolation {
   def unapply(pv:PolicyViolation):Option[String] = Some(pv.message)
 }
 
-// A 'notifier' is a client-configured function for handling
-// (or "notifying") policy violations from component filters.
-// Examples of policy violations are failure to convert a string to a type,
-// or failing to satisfy some predicate, such as 'value > threshold'.
-type Notifier = PolicyViolation=>Unit
+
+object OutputConversions {
 
 def conversionMessage(v:Any):String = {
   val tString = v.getClass.getName
@@ -111,13 +110,22 @@ implicit val objectOptionToString = new ConvertOptionToV[String] {
   }
 }
 
+}
+
+import OutputConversions._
 
 trait MetaConfiguration {
-  type Regex = scala.util.matching.Regex
+  // A 'notifier' is a client-configured function for handling
+  // (or "notifying") policy violations from component filters.
+  // Examples of policy violations are failure to convert a string to a type,
+  // or failing to satisfy some predicate, such as 'value > threshold'.
+  type Notifier = PolicyViolation => Unit
+
+  private type Regex = scala.util.matching.Regex
 
   val policy = this
 
-  val map: mutable.Map[String, Function[Option[String], Option[Any]]] = mutable.Map()
+  private [configaro] val map: mutable.Map[String, Function[Option[String], Option[Any]]] = mutable.Map()
 
   trait TypeConverter[T] {
     def func: String => T
@@ -275,6 +283,8 @@ class Config(mc: MetaConfiguration) extends Function[String, Option[Any]] {
   }
 }
 
+/*
+
 // Example of a custom filter.  Tests for a proper name format.
 // If incoming value meets the format, it is passed along, oetherwise a PolicyViolation
 // is thrown to signal the failure.
@@ -352,3 +362,5 @@ assert(conf.require[String]("lastname") == "Beeblebrox")
 // will cause a message to stderr:
 conf.put("lastname", "beeblebrox")
 assert(conf.get[String]("lastname") == None)
+
+*/
