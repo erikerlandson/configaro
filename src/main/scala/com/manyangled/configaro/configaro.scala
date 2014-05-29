@@ -114,22 +114,27 @@ private [configaro] object OutputConversions {
 
 import OutputConversions._
 
-object MetaConfiguration {
+object PropertyPolicy {
   // A 'notifier' is a client-configured function for handling
   // (or "notifying") policy violations from component filters.
   // Examples of policy violations are failure to convert a string to a type,
   // or failing to satisfy some predicate, such as 'value > threshold'.
   type Notifier = PolicyViolation => Unit
+
+  private [configaro] type PolicyFunction = Function[Option[String], Option[Any]]
+
+  implicit def convertToMap(pp:PropertyPolicy):Map[String, PolicyFunction] = pp.map.toMap
 }
 
-trait MetaConfiguration {
-  type Notifier = MetaConfiguration.Notifier
+trait PropertyPolicy {
+  type Notifier = PropertyPolicy.Notifier
+  type PolicyFunction = PropertyPolicy.PolicyFunction
   
   private type Regex = scala.util.matching.Regex
 
   val policy = this
 
-  private [configaro] val map: mutable.Map[String, Function[Option[String], Option[Any]]] = mutable.Map()
+  private [configaro] val map: mutable.Map[String, PolicyFunction] = mutable.Map()
 
   trait TypeConverter[T] {
     def func: String => T
@@ -244,16 +249,15 @@ trait MetaConfiguration {
 
 // holds a configuration, and imports configuration requirements
 // (requirements are defined below)
-class Config(mc: MetaConfiguration) extends Function[String, Option[Any]] {
-  val metaConfig = mc.map
-  val conf: mutable.Map[String, String] = mutable.Map()
+class PropertyMap(val policy: PropertyPolicy) {
+  val properties: mutable.Map[String, String] = mutable.Map()
 
   def apply(s:String):Option[Any] = {
-    metaConfig.getOrElse(s, (x:Option[String])=>x)(conf.get(s))
+    policy.getOrElse(s, (x:Option[String])=>x)(properties.get(s))
   }
 
   def put[T](s:String, v:T, check:Boolean=true):Unit = {
-    conf.put(s, v.toString)
+    properties.put(s, v.toString)
   }
 
   // get operates like get usually does for a Map, except that a
@@ -261,7 +265,7 @@ class Config(mc: MetaConfiguration) extends Function[String, Option[Any]] {
   // have different output types from meta-config policies
   // e.g. conf.get[Int]("param")  -->  Option[Int] = Some(int-value) or None
   def get[T:ConvertOptionToV](s:String):Option[T] = {
-    try { 
+    try {
       this(s).map(implicitly[ConvertOptionToV[T]].convert) 
     } catch {
       // A failure to convert to a supported type goes to None,

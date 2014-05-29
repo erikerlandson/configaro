@@ -20,9 +20,9 @@ package com.manyangled.configaro
 
 import org.scalatest.FunSuite
 
-class MetaConfigSuite extends FunSuite {
+class PropertyPolicySuite extends FunSuite {
   test("declare empty policy") {
-    object meta extends MetaConfiguration {
+    object policy extends PropertyPolicy {
     }
   }
 }

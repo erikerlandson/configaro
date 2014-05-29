@@ -30,7 +30,7 @@ def properName(v:String):String = {
 
 // here is where you define policies for each config variable
 // this could reside in its own file for easy maintenance
-object metaConfigExample extends MetaConfiguration {
+object policy extends PropertyPolicy {
   // configure a simple notification policy that dumps PolicyViolation 
   // exceptions to standard error
   policy notify ((e:PolicyViolation)=>{ System.err.println(e.toString) })
@@ -55,7 +55,7 @@ object metaConfigExample extends MetaConfiguration {
   "lastname" regex """^[A-Z][a-z]+$"""
 }
 
-val conf = new Config(metaConfigExample)
+val conf = new PropertyMap(policy)
 
 assert(conf.require[Int]("a") == 42)
 assert(conf.require[Long]("a") == 42L)
