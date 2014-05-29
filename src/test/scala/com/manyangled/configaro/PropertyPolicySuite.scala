@@ -24,5 +24,6 @@ class PropertyPolicySuite extends FunSuite {
   test("declare empty policy") {
     object policy extends PropertyPolicy {
     }
+    assert(policy.isEmpty)
   }
 }
