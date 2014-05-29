@@ -48,4 +48,40 @@ class PropertyPolicySuite extends FunSuite {
     assert(policy("a")(None) == None)
     assert(policy("a")(Some("xxx")) == Some("xxx"))    
   }
+
+  test("Int property") {
+    object policy extends PropertyPolicy {
+      "a" is tpe[Int]
+    }
+    assert(policy("a")(None) == None)
+    assert(policy("a")(Some("3")) == Some(3))
+    assert(policy("a")(Some("x")) == None)
+  }
+
+  test("Long property") {
+    object policy extends PropertyPolicy {
+      "a" is tpe[Long]
+    }
+    assert(policy("a")(None) == None)
+    assert(policy("a")(Some("3")) == Some(3L))
+    assert(policy("a")(Some("x")) == None)
+  }
+
+  test("Float property") {
+    object policy extends PropertyPolicy {
+      "a" is tpe[Float]
+    }
+    assert(policy("a")(None) == None)
+    assert(policy("a")(Some("3")) == Some(3.0f))
+    assert(policy("a")(Some("x")) == None)
+  }
+
+  test("Double property") {
+    object policy extends PropertyPolicy {
+      "a" is tpe[Double]
+    }
+    assert(policy("a")(None) == None)
+    assert(policy("a")(Some("3")) == Some(3.0))
+    assert(policy("a")(Some("x")) == None)
+  }
 }
