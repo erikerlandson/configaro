@@ -27,24 +27,24 @@ class PropertyPolicySuite extends FunSuite {
     assert(policy.isEmpty)
   }
 
-  test("implicit string property") {
+  test("implicit String property") {
     object policy extends PropertyPolicy {
       "a" pipe identity[String]_
     }
+    // smoke test basic map properties
     assert(policy.size == 1)
     assert(policy.get("a").nonEmpty)
     assert(policy.get("b") == None)
+
+    // string type properties
     assert(policy("a")(None) == None)
     assert(policy("a")(Some("xxx")) == Some("xxx"))
   }
 
-  test("explicit string property") {
+  test("String property") {
     object policy extends PropertyPolicy {
       "a" is tpe[String]
     }
-    assert(policy.size == 1)
-    assert(policy.get("a").nonEmpty)
-    assert(policy.get("b") == None)
     assert(policy("a")(None) == None)
     assert(policy("a")(Some("xxx")) == Some("xxx"))    
   }
