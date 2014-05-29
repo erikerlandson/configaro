@@ -84,4 +84,48 @@ class PropertyPolicySuite extends FunSuite {
     assert(policy("a")(Some("3")) == Some(3.0))
     assert(policy("a")(Some("x")) == None)
   }
+
+  test("String default") {
+    object policy extends PropertyPolicy {
+      "a" default "foo"
+    }
+    assert(policy("a")(None) == Some("foo"))
+    assert(policy("a")(Some("xxx")) == Some("xxx"))
+  }
+
+  test("Int default") {
+    object policy extends PropertyPolicy {
+      "a" is tpe[Int] default 7
+    }
+    assert(policy("a")(None) == Some(7))
+    assert(policy("a")(Some("3")) == Some(3))
+    assert(policy("a")(Some("x")) == Some(7))
+  }
+
+  test("Long default") {
+    object policy extends PropertyPolicy {
+      "a" is tpe[Long] default 7L
+    }
+    assert(policy("a")(None) == Some(7L))
+    assert(policy("a")(Some("3")) == Some(3L))
+    assert(policy("a")(Some("x")) == Some(7L))
+  }
+
+  test("Float default") {
+    object policy extends PropertyPolicy {
+      "a" is tpe[Float] default 7.0f
+    }
+    assert(policy("a")(None) == Some(7.0f))
+    assert(policy("a")(Some("3")) == Some(3.0f))
+    assert(policy("a")(Some("x")) == Some(7.0f))
+  }
+
+  test("Double default") {
+    object policy extends PropertyPolicy {
+      "a" is tpe[Double] default 7.0
+    }
+    assert(policy("a")(None) == Some(7.0))
+    assert(policy("a")(Some("3")) == Some(3.0))
+    assert(policy("a")(Some("x")) == Some(7.0))
+  }
 }
