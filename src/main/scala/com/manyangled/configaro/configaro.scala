@@ -114,13 +114,17 @@ private [configaro] object OutputConversions {
 
 import OutputConversions._
 
-trait MetaConfiguration {
+object MetaConfiguration {
   // A 'notifier' is a client-configured function for handling
   // (or "notifying") policy violations from component filters.
   // Examples of policy violations are failure to convert a string to a type,
   // or failing to satisfy some predicate, such as 'value > threshold'.
   type Notifier = PolicyViolation => Unit
+}
 
+trait MetaConfiguration {
+  type Notifier = MetaConfiguration.Notifier
+  
   private type Regex = scala.util.matching.Regex
 
   val policy = this
