@@ -389,6 +389,58 @@ class PropertyPolicySuite extends FunSuite {
     assert(policy("a")(Some("x")) == None)
   }
 
+  test("bound gt lt Double") {
+    object policy extends PropertyPolicy {
+      "a" is tpe[Double]   gt 1.6   lt 1.8
+    }
+    assert(policy("a")(None) == None)
+    assert(policy("a")(Some("1.5")) == None)
+    assert(policy("a")(Some("1.6")) == None)
+    assert(policy("a")(Some("1.7")) == Some(1.7))
+    assert(policy("a")(Some("1.8")) == None)
+    assert(policy("a")(Some("1.9")) == None)
+    assert(policy("a")(Some("x")) == None)
+  }
+
+  test("bound gt le Double") {
+    object policy extends PropertyPolicy {
+      "a" is tpe[Double]   gt 1.6   le 1.8
+    }
+    assert(policy("a")(None) == None)
+    assert(policy("a")(Some("1.5")) == None)
+    assert(policy("a")(Some("1.6")) == None)
+    assert(policy("a")(Some("1.7")) == Some(1.7))
+    assert(policy("a")(Some("1.8")) == Some(1.8))
+    assert(policy("a")(Some("1.9")) == None)
+    assert(policy("a")(Some("x")) == None)
+  }
+
+  test("bound ge lt Double") {
+    object policy extends PropertyPolicy {
+      "a" is tpe[Double]   ge 1.6   lt 1.8
+    }
+    assert(policy("a")(None) == None)
+    assert(policy("a")(Some("1.5")) == None)
+    assert(policy("a")(Some("1.6")) == Some(1.6))
+    assert(policy("a")(Some("1.7")) == Some(1.7))
+    assert(policy("a")(Some("1.8")) == None)
+    assert(policy("a")(Some("1.9")) == None)
+    assert(policy("a")(Some("x")) == None)
+  }
+
+  test("bound ge le Double") {
+    object policy extends PropertyPolicy {
+      "a" is tpe[Double]   ge 1.6   le 1.8
+    }
+    assert(policy("a")(None) == None)
+    assert(policy("a")(Some("1.5")) == None)
+    assert(policy("a")(Some("1.6")) == Some(1.6))
+    assert(policy("a")(Some("1.7")) == Some(1.7))
+    assert(policy("a")(Some("1.8")) == Some(1.8))
+    assert(policy("a")(Some("1.9")) == None)
+    assert(policy("a")(Some("x")) == None)
+  }
+
   test("regex") {
     object policy extends PropertyPolicy {
       "a" regex """^[a-z]+$"""
