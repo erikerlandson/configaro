@@ -485,4 +485,14 @@ class PropertyPolicySuite extends FunSuite {
     assert(policy("a")(Some("y")) == Some("xy"))
     assert(policy("a")(Some("z")) == Some("xz"))
   }
+
+  test("pipe custom type change") {
+    object policy extends PropertyPolicy {
+      "a" is tpe[Int] pipe ((x:Int)=>0.5+x)
+    }
+    assert(policy("a")(None) == None)
+    assert(policy("a")(Some("1")) == Some(1.5))
+    assert(policy("a")(Some("7")) == Some(7.5))
+    assert(policy("a")(Some("x")) == None)
+  }
 }
