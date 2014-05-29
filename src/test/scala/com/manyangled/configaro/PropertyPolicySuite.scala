@@ -443,6 +443,19 @@ class PropertyPolicySuite extends FunSuite {
 
   test("regex") {
     object policy extends PropertyPolicy {
+      "a" regex """^[a-z]+$""".r
+    }
+    assert(policy("a")(None) == None)
+    assert(policy("a")(Some("")) == None)
+    assert(policy("a")(Some("q")) == Some("q"))
+    assert(policy("a")(Some("qr")) == Some("qr"))
+    assert(policy("a")(Some("Q")) == None)
+    assert(policy("a")(Some("qR")) == None)
+    assert(policy("a")(Some("Qr")) == None)
+  }
+
+  test("regex from string") {
+    object policy extends PropertyPolicy {
       "a" regex """^[a-z]+$"""
     }
     assert(policy("a")(None) == None)
