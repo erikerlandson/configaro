@@ -337,6 +337,58 @@ class PropertyPolicySuite extends FunSuite {
     assert(policy("a")(Some("x")) == None)
   }
 
+  test("bound gt lt Int") {
+    object policy extends PropertyPolicy {
+      "a" is tpe[Int]   gt 6   lt 8
+    }
+    assert(policy("a")(None) == None)
+    assert(policy("a")(Some("5")) == None)
+    assert(policy("a")(Some("6")) == None)
+    assert(policy("a")(Some("7")) == Some(7))
+    assert(policy("a")(Some("8")) == None)
+    assert(policy("a")(Some("9")) == None)
+    assert(policy("a")(Some("x")) == None)
+  }
+
+  test("bound gt le Int") {
+    object policy extends PropertyPolicy {
+      "a" is tpe[Int]   gt 6   le 8
+    }
+    assert(policy("a")(None) == None)
+    assert(policy("a")(Some("5")) == None)
+    assert(policy("a")(Some("6")) == None)
+    assert(policy("a")(Some("7")) == Some(7))
+    assert(policy("a")(Some("8")) == Some(8))
+    assert(policy("a")(Some("9")) == None)
+    assert(policy("a")(Some("x")) == None)
+  }
+
+  test("bound ge lt Int") {
+    object policy extends PropertyPolicy {
+      "a" is tpe[Int]   ge 6   lt 8
+    }
+    assert(policy("a")(None) == None)
+    assert(policy("a")(Some("5")) == None)
+    assert(policy("a")(Some("6")) == Some(6))
+    assert(policy("a")(Some("7")) == Some(7))
+    assert(policy("a")(Some("8")) == None)
+    assert(policy("a")(Some("9")) == None)
+    assert(policy("a")(Some("x")) == None)
+  }
+
+  test("bound ge le Int") {
+    object policy extends PropertyPolicy {
+      "a" is tpe[Int]   ge 6   le 8
+    }
+    assert(policy("a")(None) == None)
+    assert(policy("a")(Some("5")) == None)
+    assert(policy("a")(Some("6")) == Some(6))
+    assert(policy("a")(Some("7")) == Some(7))
+    assert(policy("a")(Some("8")) == Some(8))
+    assert(policy("a")(Some("9")) == None)
+    assert(policy("a")(Some("x")) == None)
+  }
+
   test("regex") {
     object policy extends PropertyPolicy {
       "a" regex """^[a-z]+$"""
