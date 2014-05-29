@@ -239,9 +239,9 @@ trait PropertyPolicy {
   }
 
   implicit def stringToContext(s:String):Context[String] = {
-    val identity = (x:Option[String])=>x
-    map(s) = identity
-    new Context(s, identity, notifierGlobal)
+    val id = identity[Option[String]]_
+    map(s) = id
+    new Context(s, id, notifierGlobal)
   }
 
   implicit def stringToRegex(s:String):Regex = s.r
@@ -253,7 +253,7 @@ class PropertyMap(val policy: PropertyPolicy) {
   val properties: mutable.Map[String, String] = mutable.Map()
 
   def apply(s:String):Option[Any] = {
-    policy.getOrElse(s, (x:Option[String])=>x)(properties.get(s))
+    policy.getOrElse(s, identity[Option[String]]_)(properties.get(s))
   }
 
   def put[T](s:String, v:T, check:Boolean=true):Unit = {
