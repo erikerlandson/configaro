@@ -495,4 +495,27 @@ class PropertyPolicySuite extends FunSuite {
     assert(policy("a")(Some("7")) == Some(7.5))
     assert(policy("a")(Some("x")) == None)
   }
+
+  test("notify policy throw") {
+    object policy extends PropertyPolicy {
+      policy notify ((pv:PolicyViolation)=>{ throw pv })
+      "a" is tpe[Int]   ge 0
+      "b" regex """^[a-z]+$"""
+    }
+
+    assert(policy("a")(None) == None)
+    assert(policy("b")(None) == None)
+
+    intercept[TypePolicyViolation] { policy("a")(Some("x")) }
+    intercept[BoundPolicyViolation] { policy("a")(Some("-1")) }
+    intercept[RegexPolicyViolation] { policy("b")(Some("X")) }
+
+    intercept[PolicyViolation] { policy("a")(Some("x")) }
+    intercept[PolicyViolation] { policy("a")(Some("-1")) }
+    intercept[PolicyViolation] { policy("b")(Some("X")) }
+
+    assert(policy("a")(Some("0")) == Some(0))
+    assert(policy("a")(Some("1")) == Some(1))
+    assert(policy("b")(Some("x")) == Some("x"))
+  }
 }
