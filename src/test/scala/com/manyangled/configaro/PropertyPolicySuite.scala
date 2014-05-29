@@ -466,4 +466,23 @@ class PropertyPolicySuite extends FunSuite {
     assert(policy("a")(Some("qR")) == None)
     assert(policy("a")(Some("Qr")) == None)
   }
+
+  test("pipe custom Int") {
+    object policy extends PropertyPolicy {
+      "a" is tpe[Int] pipe ((x:Int)=>10+x)
+    }
+    assert(policy("a")(None) == None)
+    assert(policy("a")(Some("1")) == Some(11))
+    assert(policy("a")(Some("7")) == Some(17))
+    assert(policy("a")(Some("x")) == None)
+  }
+
+  test("pipe custom String") {
+    object policy extends PropertyPolicy {
+      "a" pipe ((x:String)=>"x"+x)
+    }
+    assert(policy("a")(None) == None)
+    assert(policy("a")(Some("y")) == Some("xy"))
+    assert(policy("a")(Some("z")) == Some("xz"))
+  }
 }
