@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package com.manyangled.configaro;
+package com.manyangled.configaro
 
 import scala.collection.mutable
 import scala.language.implicitConversions
@@ -39,76 +39,76 @@ object PolicyViolation {
 }
 
 
-object OutputConversions {
+private [configaro] object OutputConversions {
 
-def conversionMessage(v:Any):String = {
-  val tString = v.getClass.getName
-  s"Failed to convert $tString = $v to the requested type"
-}
+  def conversionMessage(v:Any):String = {
+    val tString = v.getClass.getName
+    s"Failed to convert $tString = $v to the requested type"
+  }
 
-trait ConvertOptionToV[V] {
-  def convert(cv:Any):V
-}
+  trait ConvertOptionToV[V] {
+    def convert(cv:Any):V
+  }
 
-implicit val objectOptionToInt = new ConvertOptionToV[Int] {
-  def convert(cv:Any):Int = try { cv match {
-      case v: Int => v
-      case v: Long if v == v.toInt.toLong => v.toInt
-      case v: Float if v == v.toInt.toFloat => v.toInt
-      case v: Double if v == v.toInt.toDouble => v.toInt
-      case v: String => v.toInt
-      case _ => throw new Exception
-    }
-  } catch {
-    case _: Exception => throw new ConversionException(conversionMessage(cv))
-  }  
-}
-implicit val objectOptionToLong = new ConvertOptionToV[Long] {
-  def convert(cv:Any):Long = try { cv match {
-      case v: Int => v.toLong
-      case v: Long => v
-      case v: Float if v == v.toLong.toFloat => v.toLong
-      case v: Double if v == v.toLong.toDouble => v.toLong
-      case v: String => v.toLong
-      case _ => throw new Exception
-    }
-  } catch {
-    case _: Exception => throw new ConversionException(conversionMessage(cv))
+  implicit val objectOptionToInt = new ConvertOptionToV[Int] {
+    def convert(cv:Any):Int = try { cv match {
+        case v: Int => v
+        case v: Long if v == v.toInt.toLong => v.toInt
+        case v: Float if v == v.toInt.toFloat => v.toInt
+        case v: Double if v == v.toInt.toDouble => v.toInt
+        case v: String => v.toInt
+        case _ => throw new Exception
+      }
+    } catch {
+      case _: Exception => throw new ConversionException(conversionMessage(cv))
+    }  
   }
-}
-implicit val objectOptionToFloat = new ConvertOptionToV[Float] {
-  def convert(cv:Any):Float = try { cv match {
-      case v: Int => v.toFloat
-      case v: Long => v.toFloat
-      case v: Float => v
-      case v: Double => v.toFloat
-      case v: String => v.toFloat
-      case _ => throw new Exception
+  implicit val objectOptionToLong = new ConvertOptionToV[Long] {
+    def convert(cv:Any):Long = try { cv match {
+        case v: Int => v.toLong
+        case v: Long => v
+        case v: Float if v == v.toLong.toFloat => v.toLong
+        case v: Double if v == v.toLong.toDouble => v.toLong
+        case v: String => v.toLong
+        case _ => throw new Exception
+      }
+    } catch {
+      case _: Exception => throw new ConversionException(conversionMessage(cv))
     }
-  } catch {
-    case _: Exception => throw new ConversionException(conversionMessage(cv))
   }
-}
-implicit val objectOptionToDouble = new ConvertOptionToV[Double] {
-  def convert(cv:Any):Double = try { cv match {
-      case v: Int => v.toDouble
-      case v: Long => v.toDouble
-      case v: Float => v.toDouble
-      case v: Double => v
-      case v: String => v.toDouble
-      case _ => throw new Exception
+  implicit val objectOptionToFloat = new ConvertOptionToV[Float] {
+    def convert(cv:Any):Float = try { cv match {
+        case v: Int => v.toFloat
+        case v: Long => v.toFloat
+        case v: Float => v
+        case v: Double => v.toFloat
+        case v: String => v.toFloat
+        case _ => throw new Exception
+      }
+    } catch {
+      case _: Exception => throw new ConversionException(conversionMessage(cv))
     }
-  } catch {
-    case _: Exception => throw new ConversionException(conversionMessage(cv))
   }
-}
-implicit val objectOptionToString = new ConvertOptionToV[String] {
-  def convert(cv:Any):String = try {
-    cv.toString
-  } catch {
-    case _: Exception => throw new ConversionException(conversionMessage(cv))
+  implicit val objectOptionToDouble = new ConvertOptionToV[Double] {
+    def convert(cv:Any):Double = try { cv match {
+        case v: Int => v.toDouble
+        case v: Long => v.toDouble
+        case v: Float => v.toDouble
+        case v: Double => v
+        case v: String => v.toDouble
+        case _ => throw new Exception
+      }
+    } catch {
+      case _: Exception => throw new ConversionException(conversionMessage(cv))
+    }
   }
-}
+  implicit val objectOptionToString = new ConvertOptionToV[String] {
+    def convert(cv:Any):String = try {
+      cv.toString
+    } catch {
+      case _: Exception => throw new ConversionException(conversionMessage(cv))
+    }
+  }
 
 }
 
