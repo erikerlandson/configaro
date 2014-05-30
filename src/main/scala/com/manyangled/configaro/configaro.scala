@@ -186,10 +186,7 @@ trait PropertyPolicy {
 
   def opLT[T](a:T, b:T)(implicit n: Numeric[T]):Boolean = { n.lt(a,b) }
 
-  class Context[R](k:String, f:Option[String]=>Option[R], n:Notifier) {
-    private val key = k
-    private val func = f
-    private var notifier = n
+  private [configaro] class Context[R](val key:String, val func:Option[String]=>Option[R], var notifier:Notifier) {
 
     private def comp[S>:R,T](g:Option[S]=>Option[T]):Context[T] = {
       val h = func andThen g
