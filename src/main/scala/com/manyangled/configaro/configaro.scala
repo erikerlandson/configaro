@@ -246,8 +246,8 @@ trait PropertyPolicy {
 
 // holds a configuration, and imports configuration requirements
 // (requirements are defined below)
-class PropertyMap(val policy: PropertyPolicy) {
-  val properties: mutable.Map[String, String] = mutable.Map()
+class PropertyMap(private val policy: PropertyPolicy) {
+  private val properties: mutable.Map[String, String] = mutable.Map()
 
   def apply(s:String):Option[Any] = {
     policy.getOrElse(s, identity[Option[String]]_)(properties.get(s))
