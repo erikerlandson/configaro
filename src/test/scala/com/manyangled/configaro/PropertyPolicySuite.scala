@@ -518,4 +518,46 @@ class PropertyPolicySuite extends FunSuite {
     assert(policy("a")(Some("1")) == Some(1))
     assert(policy("b")(Some("x")) == Some("x"))
   }
+
+  test("multiple notify policy throw") {
+    class Test1 extends Exception
+    class Test2 extends Exception
+    class Test3 extends Exception
+
+    object policy extends PropertyPolicy {
+      // set global notify policy
+      policy notify ((pv:PolicyViolation)=>{ throw pv })
+      "a" is tpe[Int]   ge 0
+
+      // override notify policy on per-property basis:
+      "b" notify ((pv:PolicyViolation)=>{ throw new Test1 }) is tpe[Int] notify ((pv:PolicyViolation)=>{ throw new Test2 })  ge 0
+
+      // global should go back into effect
+      "c" is tpe[Int]   ge 0
+
+      // update the global policy to a new one
+      policy notify ((pv:PolicyViolation)=>{ throw new Test3 })
+      "d" is tpe[Int]   ge 0
+    }
+
+    assert(policy("a")(None) == None)
+    intercept[PolicyViolation] { policy("a")(Some("x")) }
+    intercept[PolicyViolation] { policy("a")(Some("-1")) }
+    assert(policy("a")(Some("0")) == Some(0))
+
+    assert(policy("b")(None) == None)
+    intercept[Test1] { policy("b")(Some("x")) }
+    intercept[Test2] { policy("b")(Some("-1")) }
+    assert(policy("b")(Some("0")) == Some(0))
+
+    assert(policy("c")(None) == None)
+    intercept[PolicyViolation] { policy("c")(Some("x")) }
+    intercept[PolicyViolation] { policy("c")(Some("-1")) }
+    assert(policy("c")(Some("0")) == Some(0))
+
+    assert(policy("d")(None) == None)
+    intercept[Test3] { policy("d")(Some("x")) }
+    intercept[Test3] { policy("d")(Some("-1")) }
+    assert(policy("d")(Some("0")) == Some(0))    
+  }
 }
