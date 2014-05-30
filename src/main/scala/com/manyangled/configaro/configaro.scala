@@ -132,8 +132,6 @@ trait PropertyPolicy {
   
   private type Regex = scala.util.matching.Regex
 
-  val policy = this
-
   private [configaro] val map: mutable.Map[String, PolicyFunction] = mutable.Map()
 
   trait TypeConverter[T] {
@@ -158,7 +156,7 @@ trait PropertyPolicy {
 
   private var notifierGlobal:Notifier = (e:PolicyViolation)=>{}
 
-  def notify(n:Notifier):Unit = { notifierGlobal = n }
+  private def opLT[T](a:T, b:T)(implicit n: Numeric[T]):Boolean = { n.lt(a,b) }
 
   // wrap embodies the core meta-config model: 
   // A meta policy for a parameter is a function from Option[String] => Option[T],
@@ -182,9 +180,11 @@ trait PropertyPolicy {
     }
   }
 
-  def tpe[T:TypeConverter]:(String=>T) = implicitly[TypeConverter[T]].func
+  val policy = this
 
-  def opLT[T](a:T, b:T)(implicit n: Numeric[T]):Boolean = { n.lt(a,b) }
+  def notify(n:Notifier):Unit = { notifierGlobal = n }
+
+  def tpe[T:TypeConverter]:(String=>T) = implicitly[TypeConverter[T]].func
 
   private [configaro] class Context[R](val key:String, val func:Option[String]=>Option[R], var notifier:Notifier) {
 
